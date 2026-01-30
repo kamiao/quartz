@@ -5,7 +5,7 @@
 #include "Trigger.h"
 #include "Job.h"
 #include "JobStore.h"
-#include <memory>
+#include "foundation/SharedPtr.h"
 
 namespace siit
 {
@@ -31,6 +31,12 @@ namespace siit
             bool hasLast = false;
             bool hasNext = false;
             bool paused = false;
+            bool cancelled = false;
+
+            // 用于优先队列比较
+            bool operator>(const ScheduledJob& other) const {
+                return nextFire > other.nextFire;
+            }
         };
     }
 }

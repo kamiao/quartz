@@ -14,6 +14,7 @@ public:
 
     }
     void execute() override {
+        siit::Thread::sleep(5000);
         std::cout << "[PrintJob] fired" << _name << std::endl;
     }
 private:
@@ -42,7 +43,7 @@ int main() {
 
     // µ÷¶È
     sched.schedule(std::make_shared<PrintJob>("1"), cron, siit::quartz::MisfirePolicy::CATCH_UP);
-    sched.schedule(std::make_shared<PrintJob>("2"), cron, siit::quartz::MisfirePolicy::CATCH_UP);
+   std::string id = sched.schedule(std::make_shared<PrintJob>("2"), cron, siit::quartz::MisfirePolicy::CATCH_UP);
 
     // Æô¶¯
     std::cout << "Scheduler started. Press Enter to quit..." << std::endl;
@@ -50,6 +51,9 @@ int main() {
 
     siit::Thread::sleep(30 * 1000);
     sched.schedule(std::make_shared<CrashJob>(), interval, siit::quartz::MisfirePolicy::FIRE_NOW);
+
+    siit::Thread::sleep(30 *1000);
+    //sched.cancel(id);
 
     std::cin.get();
 

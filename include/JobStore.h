@@ -31,6 +31,7 @@ namespace siit
             virtual void saveTrigger(const PersistedTrigger & t) = 0;
             virtual std::vector<PersistedTrigger> loadTriggers() = 0;
             virtual void updateFireTimes(const std::string & jobKey, const DateTime & last, const DateTime & next, bool hasLast, bool hasNext) = 0;
+            virtual void removeTrigger(const std::string& jobKey) = 0;
         };
     }
 }

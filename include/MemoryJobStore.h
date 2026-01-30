@@ -3,7 +3,11 @@
 
 #include "Quartz.h"
 #include "JobStore.h"
-#include <map>
+#include "foundation/HashMap.h"
+#include "foundation/Mutex.h"
+#include "foundation/SharedPtr.h"
+#include <string>
+#include <vector>
 
 namespace siit
 {
@@ -12,12 +16,25 @@ namespace siit
         class QUARTZ_API MemoryJobStore : public JobStore
         {
         public:
+            using PersistedTriggerPtr = SharedPtr<PersistedTrigger>;
+
+            MemoryJobStore();
+
             void saveTrigger(const PersistedTrigger& t) override;
+            void saveTriggerPtr(const PersistedTriggerPtr& trigger);
+
             std::vector<PersistedTrigger> loadTriggers() override;
+            std::vector<PersistedTriggerPtr> loadTriggerPtrs();
+
             void updateFireTimes(const std::string& jobKey, const DateTime& last, const DateTime& next, bool hasLast, bool hasNext) override;
 
+            void removeTrigger(const std::string& jobKey) override;
+
+            PersistedTriggerPtr getTrigger(const std::string& jobKey) const;
+
         private:
-            std::map<std::string, PersistedTrigger> _map;
+            HashMap<std::string, PersistedTriggerPtr> _triggerPtrsMap;
+            mutable FastMutex _mutex;
         };
     }
 }

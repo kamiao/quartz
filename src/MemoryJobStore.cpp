@@ -1,34 +1,90 @@
 #include "include/MemoryJobStore.h"
-#include "data/Statement.h"
 #include "foundation/Nullable.h"
 
 namespace siit
 {
     namespace quartz
     {
+        MemoryJobStore::MemoryJobStore()
+        {
+        }
+
         void MemoryJobStore::saveTrigger(const PersistedTrigger& t)
         {
-            _map[t.jobKey] = t;
+            FastMutex::ScopedLock lock(_mutex);
+            PersistedTriggerPtr triggerPtr(new PersistedTrigger(t));
+            _triggerPtrsMap[t.jobKey] = triggerPtr;
+        }
+
+        void MemoryJobStore::saveTriggerPtr(const PersistedTriggerPtr& trigger)
+        {
+            if (!trigger) return;
+
+            FastMutex::ScopedLock lock(_mutex);
+            _triggerPtrsMap[trigger->jobKey] = trigger;
         }
 
         std::vector<PersistedTrigger> MemoryJobStore::loadTriggers()
         {
-            std::vector<PersistedTrigger> v;
-            for (auto& kv : _map)
-            {
-                v.push_back(kv.second);
+            FastMutex::ScopedLock lock(_mutex);
+            std::vector<PersistedTrigger> triggers;
+
+            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it) {
+                if (it->second) {
+                    triggers.push_back(*(it->second));
+                }
             }
 
-            return v;
+            return triggers;
         }
 
-        void MemoryJobStore::updateFireTimes(const std::string& jobKey, const DateTime& last, const DateTime& next, bool hasLast, bool hasNext)
+        std::vector<MemoryJobStore::PersistedTriggerPtr> MemoryJobStore::loadTriggerPtrs()
         {
-            auto& t = _map[jobKey];
-            t.lastFireTime = last;
-            t.nextFireTime = next;
-            t.hasLast = hasLast;
-            t.hasNext = hasNext;
+            FastMutex::ScopedLock lock(_mutex);
+            std::vector<PersistedTriggerPtr> triggers;
+
+            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it) {
+                if (it->second) {
+                    triggers.push_back(it->second);
+                }
+            }
+
+            return triggers;
+        }
+
+        void MemoryJobStore::updateFireTimes(const std::string& jobKey,
+            const DateTime& last,
+            const DateTime& next,
+            bool hasLast,
+            bool hasNext)
+        {
+            FastMutex::ScopedLock lock(_mutex);
+
+            auto it = _triggerPtrsMap.find(jobKey);
+            if (it != _triggerPtrsMap.end() && it->second) {
+                it->second->lastFireTime = last;
+                it->second->nextFireTime = next;
+                it->second->hasLast = hasLast;
+                it->second->hasNext = hasNext;
+            }
+        }
+
+        void MemoryJobStore::removeTrigger(const std::string& jobKey)
+        {
+            FastMutex::ScopedLock lock(_mutex);
+            _triggerPtrsMap.erase(jobKey);
+        }
+
+        MemoryJobStore::PersistedTriggerPtr MemoryJobStore::getTrigger(const std::string& jobKey) const
+        {
+            FastMutex::ScopedLock lock(_mutex);
+
+            auto it = _triggerPtrsMap.find(jobKey);
+            if (it != _triggerPtrsMap.end()) {
+                return it->second;
+            }
+
+            return nullptr;
         }
     }
 }
