@@ -21,9 +21,10 @@ namespace siit
         class QUARTZ_API ScheduledJob
         {
         public:
+            using Ptr = siit::SharedPtr<ScheduledJob>;
             std::string jobKey;
-            std::shared_ptr<Job> job;
-            std::shared_ptr<Trigger> trigger;
+            Job::Ptr job;
+            Trigger::Ptr trigger;
             MisfirePolicy misfire = MisfirePolicy::FIRE_NOW;
 
             DateTime lastFire;

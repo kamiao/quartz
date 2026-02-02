@@ -12,11 +12,11 @@ namespace siit
         void MemoryJobStore::saveTrigger(const PersistedTrigger& t)
         {
             FastMutex::ScopedLock lock(_mutex);
-            PersistedTriggerPtr triggerPtr(new PersistedTrigger(t));
+            PersistedTrigger::Ptr triggerPtr(new PersistedTrigger(t));
             _triggerPtrsMap[t.jobKey] = triggerPtr;
         }
 
-        void MemoryJobStore::saveTriggerPtr(const PersistedTriggerPtr& trigger)
+        void MemoryJobStore::saveTriggerPtr(const PersistedTrigger::Ptr& trigger)
         {
             if (!trigger) return;
 
@@ -38,10 +38,10 @@ namespace siit
             return triggers;
         }
 
-        std::vector<MemoryJobStore::PersistedTriggerPtr> MemoryJobStore::loadTriggerPtrs()
+        std::vector<PersistedTrigger::Ptr> MemoryJobStore::loadTriggerPtrs()
         {
             FastMutex::ScopedLock lock(_mutex);
-            std::vector<PersistedTriggerPtr> triggers;
+            std::vector<PersistedTrigger::Ptr> triggers;
 
             for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it) {
                 if (it->second) {
@@ -75,7 +75,7 @@ namespace siit
             _triggerPtrsMap.erase(jobKey);
         }
 
-        MemoryJobStore::PersistedTriggerPtr MemoryJobStore::getTrigger(const std::string& jobKey) const
+        PersistedTrigger::Ptr MemoryJobStore::getTrigger(const std::string& jobKey) const
         {
             FastMutex::ScopedLock lock(_mutex);
 

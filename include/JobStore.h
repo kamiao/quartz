@@ -3,6 +3,7 @@
 
 #include "Quartz.h"
 #include "foundation/DateTime.h"
+#include "foundation/SharedPtr.h"
 #include <vector>
 #include <string>
 
@@ -10,8 +11,10 @@ namespace siit
 {
     namespace quartz
     {
-        struct PersistedTrigger
+        class PersistedTrigger
         {
+        public:
+            using Ptr = SharedPtr<PersistedTrigger>;
             std::string jobKey;
             std::string triggerType;
             std::string triggerExpr;
@@ -26,7 +29,7 @@ namespace siit
         class  JobStore
         {
         public:
-        public:
+            using Ptr = SharedPtr<JobStore>;
             virtual ~JobStore() = default;
             virtual void saveTrigger(const PersistedTrigger & t) = 0;
             virtual std::vector<PersistedTrigger> loadTriggers() = 0;

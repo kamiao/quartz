@@ -24,8 +24,8 @@ namespace siit
         {
         public:
             // 构造函数
-            explicit Scheduler(std::shared_ptr<JobStore> store);
-            Scheduler(std::shared_ptr<JobStore> store, std::shared_ptr<ThreadPool> pool);
+            explicit Scheduler(JobStore::Ptr store);
+            Scheduler(JobStore::Ptr store, ThreadPool& pool);
 
             // 禁止拷贝和移动
             Scheduler(const Scheduler&) = delete;
@@ -37,9 +37,9 @@ namespace siit
             ~Scheduler();
 
             // 任务调度接口
-            std::string schedule(std::shared_ptr<Job> job, std::shared_ptr<Trigger> trigger, MisfirePolicy misfire = MisfirePolicy::FIRE_NOW);
+            std::string schedule(Job::Ptr job, Trigger::Ptr trigger, MisfirePolicy misfire = MisfirePolicy::FIRE_NOW);
 
-            void schedule(const std::string& key, std::shared_ptr<Job> job, std::shared_ptr<Trigger> trigger, MisfirePolicy misfire = MisfirePolicy::FIRE_NOW);
+            void schedule(const std::string& key, Job::Ptr job, Trigger::Ptr trigger, MisfirePolicy misfire = MisfirePolicy::FIRE_NOW);
 
             // 任务管理接口
             bool cancel(const std::string& key);
@@ -52,32 +52,29 @@ namespace siit
             void stop(bool waitForJobsToComplete = true);
 
             // 状态查询
-            bool isRunning() const { return _running.load(); }
-            bool isShutdown() const { return _shutdown.load(); }
+            bool isRunning() const;
+
+            bool isShutdown() const;
+
             size_t getJobCount() const;
             bool jobExists(const std::string& key) const;
             DateTime getNextFireTime(const std::string& key) const;
             std::vector<std::string> getJobKeys() const;
 
-            // 设置线程池
-            void setThreadPool(std::shared_ptr<ThreadPool> pool)
-            {
-                FastMutex::ScopedLock lock(_mutex);
-                _threadPool = std::move(pool);
-            }
-
             // Runnable接口
             void run() override;
         private:
             // 内部数据结构
-            using ScheduledJobPtr = std::shared_ptr<ScheduledJob>;
+            using Ptr = siit::SharedPtr<ScheduledJob>;
 
-            struct QueueEntry {
-                ScheduledJobPtr job;
+            struct QueueEntry
+            {
+                ScheduledJob::Ptr job;
                 DateTime nextFire;
                 bool valid = true;
 
-                bool operator>(const QueueEntry& other) const {
+                bool operator>(const QueueEntry& other) const
+                {
                     return nextFire > other.nextFire;
                 }
             };
@@ -86,12 +83,12 @@ namespace siit
             using JobQueue = std::priority_queue<QueueEntry, std::vector<QueueEntry>, std::greater<QueueEntry>>;
 
             // 私有方法
-            void addJobToQueue(const ScheduledJobPtr& job);
+            void addJobToQueue(const ScheduledJob::Ptr& job);
             void removeJobFromQueue(const std::string& jobKey);
             void rebuildQueue();
 
-            void handleMisfire(ScheduledJob& job, const DateTime& now);
-            void fireJob(ScheduledJob& job, const DateTime& scheduledTime);
+            void handleMisfire(ScheduledJob::Ptr job, const DateTime& now);
+            void fireJob(ScheduledJob::Ptr job, const DateTime& scheduledTime);
 
             std::string generateJobId();
 
@@ -99,12 +96,12 @@ namespace siit
             static MisfirePolicy stringToMisfirePolicy(const std::string& str);
         private:
             // 存储
-            std::shared_ptr<JobStore> _store;
-            std::shared_ptr<ThreadPool> _threadPool;
+            JobStore::Ptr _store;
+            ThreadPool& _threadPool;
 
             // 任务存储
-            std::map<std::string, std::shared_ptr<Job>> _jobs;
-            std::map<std::string, ScheduledJobPtr> _scheduledJobs;
+            std::map<std::string, Job::Ptr> _jobs;
+            std::map<std::string, ScheduledJob::Ptr> _scheduledJobs;
 
             // 任务队列
             JobQueue _jobQueue;
@@ -119,6 +116,17 @@ namespace siit
             std::atomic<bool> _shutdown{ false };
             std::atomic<bool> _paused{ false };
         };
+
+        //inline
+        inline bool Scheduler::isRunning() const
+        {
+            return _running.load();
+        }
+
+        inline bool Scheduler::isShutdown() const
+        {
+            return _shutdown.load();
+        }
     }
 }
 #endif // !_SIIT_QUARTZ_SCHEDULER_H_

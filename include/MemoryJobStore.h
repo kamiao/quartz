@@ -16,24 +16,24 @@ namespace siit
         class QUARTZ_API MemoryJobStore : public JobStore
         {
         public:
-            using PersistedTriggerPtr = SharedPtr<PersistedTrigger>;
+            using Ptr = SharedPtr<MemoryJobStore>;
 
             MemoryJobStore();
 
             void saveTrigger(const PersistedTrigger& t) override;
-            void saveTriggerPtr(const PersistedTriggerPtr& trigger);
+            void saveTriggerPtr(const PersistedTrigger::Ptr& trigger);
 
             std::vector<PersistedTrigger> loadTriggers() override;
-            std::vector<PersistedTriggerPtr> loadTriggerPtrs();
+            std::vector<PersistedTrigger::Ptr> loadTriggerPtrs();
 
             void updateFireTimes(const std::string& jobKey, const DateTime& last, const DateTime& next, bool hasLast, bool hasNext) override;
 
             void removeTrigger(const std::string& jobKey) override;
 
-            PersistedTriggerPtr getTrigger(const std::string& jobKey) const;
+            PersistedTrigger::Ptr getTrigger(const std::string& jobKey) const;
 
         private:
-            HashMap<std::string, PersistedTriggerPtr> _triggerPtrsMap;
+            HashMap<std::string, PersistedTrigger::Ptr> _triggerPtrsMap;
             mutable FastMutex _mutex;
         };
     }

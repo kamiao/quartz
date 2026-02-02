@@ -30,27 +30,30 @@ public:
 
 int main() {
     // 内存 JobStore
-    auto store = std::make_shared<siit::quartz::MemoryJobStore>();
+    siit::quartz::MemoryJobStore::Ptr store = new siit::quartz::MemoryJobStore();
 
     // Scheduler
     siit::quartz::Scheduler sched(store);
 
     // Trigger：每 5 秒一次
-    auto cron = std::make_shared<siit::quartz::CronTrigger>("*/10 * * ? * *");
+    siit::quartz::CronTrigger::Ptr cron = new siit::quartz::CronTrigger("*/10 * * ? * *");
 
     // Trigger：每 3 秒一次
-    auto interval = std::make_shared<siit::quartz::IntervalTrigger>(siit::Timespan(0, 0, 0, 3, 0));
+    siit::quartz::IntervalTrigger::Ptr interval = new siit::quartz::IntervalTrigger(siit::Timespan(0, 0, 0, 3, 0));
 
     // 调度
-    sched.schedule(std::make_shared<PrintJob>("1"), cron, siit::quartz::MisfirePolicy::CATCH_UP);
-   std::string id = sched.schedule(std::make_shared<PrintJob>("2"), cron, siit::quartz::MisfirePolicy::CATCH_UP);
+    siit::SharedPtr<PrintJob> job1 = new PrintJob("1");
+    siit::SharedPtr<PrintJob> job2 = new PrintJob("2");
+    sched.schedule(job1, cron, siit::quartz::MisfirePolicy::CATCH_UP);
+   std::string id = sched.schedule(job2, cron, siit::quartz::MisfirePolicy::CATCH_UP);
 
     // 启动
     std::cout << "Scheduler started. Press Enter to quit..." << std::endl;
     sched.start();
 
     siit::Thread::sleep(30 * 1000);
-    sched.schedule(std::make_shared<CrashJob>(), interval, siit::quartz::MisfirePolicy::FIRE_NOW);
+    siit::SharedPtr<CrashJob> job3 = new CrashJob();
+    sched.schedule(job3, interval, siit::quartz::MisfirePolicy::FIRE_NOW);
 
     siit::Thread::sleep(30 *1000);
     //sched.cancel(id);

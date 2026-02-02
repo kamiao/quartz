@@ -3,6 +3,7 @@
 
 #include "Quartz.h"
 #include "foundation/DateTime.h"
+#include "foundation/SharedPtr.h"
 #include <memory>
 #include <string>
 
@@ -13,6 +14,7 @@ namespace siit
         class QUARTZ_API Trigger
         {
         public:
+            using Ptr = SharedPtr<Trigger>;
             virtual ~Trigger() = default;
             virtual DateTime nextFireTime(const DateTime& after) = 0;
             virtual std::string type() const = 0;

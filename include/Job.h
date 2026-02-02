@@ -13,6 +13,7 @@ namespace siit
         class QUARTZ_API Job
         {
         public:
+            using Ptr = SharedPtr<Job>;
             virtual ~Job() = default;
             virtual void execute() = 0;
         };

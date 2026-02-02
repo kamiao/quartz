@@ -14,8 +14,9 @@ namespace siit
         class JobTask : public Runnable
         {
         public:
-            JobTask(std::shared_ptr<Job> job, const std::string& jobKey)
-                : _job(std::move(job)), _jobKey(jobKey)
+            JobTask(Job::Ptr job, const std::string& jobKey)
+                : _job(job)
+                , _jobKey(jobKey)
             {
             }
 
@@ -47,22 +48,24 @@ namespace siit
             }
 
         private:
-            std::shared_ptr<Job> _job;
+            Job::Ptr _job;
             std::string _jobKey;
         };
 
-        Scheduler::Scheduler(std::shared_ptr<JobStore> store)
-            : _store(std::move(store))
-            , _threadPool(std::make_shared<ThreadPool>())
+        Scheduler::Scheduler(JobStore::Ptr store)
+            : _store(store)
+            , _threadPool(ThreadPool::defaultPool())
         {
         }
 
-        Scheduler::Scheduler(std::shared_ptr<JobStore> store, std::shared_ptr<ThreadPool> pool)
+        Scheduler::Scheduler(JobStore::Ptr store, ThreadPool& pool)
             : _store(std::move(store))
-            , _threadPool(std::move(pool)) {
+            , _threadPool(pool)
+        {
         }
 
-        Scheduler::~Scheduler() {
+        Scheduler::~Scheduler()
+        {
             try {
                 stop(true);
             }
@@ -70,33 +73,37 @@ namespace siit
             }
         }
 
-        std::string Scheduler::schedule(std::shared_ptr<Job> job, std::shared_ptr<Trigger> trigger, MisfirePolicy misfire)
+        std::string Scheduler::schedule(Job::Ptr job, Trigger::Ptr trigger, MisfirePolicy misfire)
         {
-            if (!job || !trigger) {
+            if (!job || !trigger)
+            {
                 throw InvalidArgumentException("Job and trigger cannot be null");
             }
 
             std::string key = generateJobId();
-            schedule(key, std::move(job), std::move(trigger), misfire);
+            schedule(key, job, std::move(trigger), misfire);
             
             return key;
         }
 
-        void Scheduler::schedule(const std::string& key,std::shared_ptr<Job> job, std::shared_ptr<Trigger> trigger, MisfirePolicy misfire)
+        void Scheduler::schedule(const std::string& key, Job::Ptr job, Trigger::Ptr trigger, MisfirePolicy misfire)
         {
-            if (!job || !trigger) {
+            if (!job || !trigger)
+            {
                 throw InvalidArgumentException("Job and trigger cannot be null");
             }
 
             // 检查key是否有效
-            if (key.empty()) {
+            if (key.empty())
+            {
                 throw InvalidArgumentException("Job key cannot be empty");
             }
 
             FastMutex::ScopedLock lock(_mutex);
 
             // 检查key是否已存在
-            if (_jobs.find(key) != _jobs.end()) {
+            if (_jobs.find(key) != _jobs.end())
+            {
                 throw ExistsException(siit::format("Job key already exists: %s", key));
             }
 
@@ -110,7 +117,7 @@ namespace siit
             }
 
             // 创建调度任务
-            auto scheduledJob = std::make_shared<ScheduledJob>();
+            ScheduledJob::Ptr scheduledJob = new ScheduledJob();
             scheduledJob->jobKey = key;
             scheduledJob->job = job;
             scheduledJob->trigger = trigger;
@@ -234,11 +241,13 @@ namespace siit
             return true;
         }
 
-        bool Scheduler::deleteJob(const std::string& key) {
+        bool Scheduler::deleteJob(const std::string& key)
+        {
             return cancel(key);
         }
 
-        void Scheduler::start() {
+        void Scheduler::start()
+        {
             if (_running.exchange(true)) {
                 throw IllegalStateException("Scheduler is already running");
             }
@@ -249,7 +258,8 @@ namespace siit
             _schedulerThread.start(*this);
         }
 
-        void Scheduler::stop(bool waitForJobsToComplete) {
+        void Scheduler::stop(bool waitForJobsToComplete)
+        {
             if (!_running.exchange(false)) {
                 return; // 已经停止
             }
@@ -265,8 +275,9 @@ namespace siit
             }
 
             // 如果需要等待任务完成
-            if (waitForJobsToComplete && _threadPool) {
-                _threadPool->joinAll();
+            if (waitForJobsToComplete)
+            {
+                _threadPool.joinAll();
             }
         }
 
@@ -274,7 +285,7 @@ namespace siit
         {
             while (_running.load() && !_shutdown.load())
             {
-                ScheduledJobPtr nextJob;
+                ScheduledJob::Ptr nextJob;
                 DateTime nextFireTime;
 
                 // 阶段1：获取下一个任务
@@ -354,7 +365,7 @@ namespace siit
 
                 // 阶段3：执行任务
                 try {
-                    handleMisfire(*nextJob, now);
+                    handleMisfire(nextJob, now);
                 }
                 catch (...) {
                     // 异常处理
@@ -363,26 +374,27 @@ namespace siit
             }
         }
 
-        void Scheduler::handleMisfire(ScheduledJob& job, const DateTime& now)
+        void Scheduler::handleMisfire(ScheduledJob::Ptr job, const DateTime& now)
         {
-            if (job.cancelled || job.paused || !job.hasNext) {
+            if (job->cancelled || job->paused || !job->hasNext)
+            {
                 return;
             }
 
             // 计算错过的时间
             Timespan misfireThreshold(1, 0); // 1秒阈值
-            Timespan diff = now - job.nextFire;
+            Timespan diff = now - job->nextFire;
 
             // 检查是否错过
             bool isMisfire = (diff > misfireThreshold);
 
             // 根据策略处理
-            switch (job.misfire)
+            switch (job->misfire)
             {
             case MisfirePolicy::FIRE_NOW:
             {
                 // 立即触发
-                fireJob(job, isMisfire ? now : job.nextFire);
+                fireJob(job, isMisfire ? now : job->nextFire);
                 break;
             }
 
@@ -390,34 +402,34 @@ namespace siit
             {
                 if (!isMisfire)
                 {
-                    fireJob(job, job.nextFire);
+                    fireJob(job, job->nextFire);
                 }
                 else
                 {
                     // 跳过这次触发
-                    job.lastFire = job.nextFire;
-                    job.hasLast = true;
+                    job->lastFire = job->nextFire;
+                    job->hasLast = true;
 
                     // 计算下一次触发
-                    DateTime nextFire = job.trigger->nextFireTime(now);
+                    DateTime nextFire = job->trigger->nextFireTime(now);
                     if (!Nullable<DateTime>(nextFire).isNull())
                     {
-                        job.nextFire = nextFire;
+                        job->nextFire = nextFire;
 
                         // 重新添加到队列
                         FastMutex::ScopedLock lock(_mutex);
-                        addJobToQueue(_scheduledJobs[job.jobKey]);
+                        addJobToQueue(_scheduledJobs[job->jobKey]);
                     }
                     else
                     {
-                        job.hasNext = false;
+                        job->hasNext = false;
                     }
 
                     // 更新存储
                     if (_store)
                     {
                         try {
-                            _store->updateFireTimes(job.jobKey, job.lastFire, job.nextFire, job.hasLast, job.hasNext);
+                            _store->updateFireTimes(job->jobKey, job->lastFire, job->nextFire, job->hasLast, job->hasNext);
                         }
                         catch (const std::exception& e) {
                         }
@@ -429,12 +441,12 @@ namespace siit
             {
                 if (!isMisfire)
                 {
-                    fireJob(job, job.nextFire);
+                    fireJob(job, job->nextFire);
                 }
                 else
                 {
                     // 追赶执行
-                    if (auto intervalTrigger = std::dynamic_pointer_cast<IntervalTrigger>(job.trigger))
+                    if (auto intervalTrigger = dynamic_cast<IntervalTrigger*>(job->trigger.get()))
                     {
                         // 间隔触发器：执行所有错过的触发
                         Timespan interval = intervalTrigger->interval();
@@ -445,18 +457,18 @@ namespace siit
                             // 执行所有错过的触发
                             for (long long i = 0; i < missedCount; ++i)
                             {
-                                DateTime fireTime = job.nextFire + interval.seconds() * i;
+                                DateTime fireTime = job->nextFire + interval.seconds() * i;
                                 fireJob(job, fireTime);
                             }
 
-                            job.lastFire = job.nextFire + interval.seconds() * (missedCount - 1);
-                            job.hasLast = true;
-                            job.nextFire = job.lastFire + interval;
+                            job->lastFire = job->nextFire + interval.seconds() * (missedCount - 1);
+                            job->hasLast = true;
+                            job->nextFire = job->lastFire + interval;
                         }
                     }
                     else {
                         // 非间隔触发器：执行一次
-                        fireJob(job, job.nextFire);
+                        fireJob(job, job->nextFire);
                     }
                 }
                 break;
@@ -464,49 +476,38 @@ namespace siit
             }
         }
 
-        void Scheduler::fireJob(ScheduledJob& job, const DateTime& scheduledTime)
+        void Scheduler::fireJob(ScheduledJob::Ptr job, const DateTime& scheduledTime)
         {
-            if (job.cancelled || !job.job)
+            if (job->cancelled || !job->job)
             {
                 return;
             }
 
             // 更新执行记录
-            job.lastFire = scheduledTime;
-            job.hasLast = true;
+            job->lastFire = scheduledTime;
+            job->hasLast = true;
 
             // 计算下一次触发
             DateTime now;
-            DateTime nextFire = job.trigger->nextFireTime(now);
-            job.nextFire = nextFire;
-            job.hasNext = !Nullable<DateTime>(nextFire).isNull();
+            DateTime nextFire = job->trigger->nextFireTime(now);
+            job->nextFire = nextFire;
+            job->hasNext = !Nullable<DateTime>(nextFire).isNull();
 
             // 执行任务
-            if (_threadPool)
+            try
             {
-                try {
-                    JobTask task(job.job, job.jobKey);
-                    _threadPool->start(task);
-                }
-                catch (const std::exception& e)
-                {
-                }
+                JobTask task(job->job, job->jobKey);
+                _threadPool.start(task);
             }
-            else {
-                // 直接执行
-                try {
-                    job.job->execute();
-                }
-                catch (...) {
-                    throw;
-                }
+            catch (const std::exception& e)
+            {
             }
 
             // 重新调度任务
-            if (job.hasNext)
+            if (job->hasNext)
             {
                 FastMutex::ScopedLock lock(_mutex);
-                addJobToQueue(_scheduledJobs[job.jobKey]);
+                addJobToQueue(_scheduledJobs[job->jobKey]);
 
                 // 通知调度线程
                 _condition.signal();
@@ -520,14 +521,14 @@ namespace siit
             if (_store)
             {
                 try {
-                    _store->updateFireTimes(job.jobKey, job.lastFire, job.nextFire, true, job.hasNext);
+                    _store->updateFireTimes(job->jobKey, job->lastFire, job->nextFire, true, job->hasNext);
                 }
                 catch (const std::exception& e) {
                 }
             }
         }
 
-        void Scheduler::addJobToQueue(const ScheduledJobPtr& job)
+        void Scheduler::addJobToQueue(const ScheduledJob::Ptr& job)
         {
             if (!job || job->paused || job->cancelled || !job->hasNext)
             {
