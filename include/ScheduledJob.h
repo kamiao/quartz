@@ -6,6 +6,7 @@
 #include "Job.h"
 #include "JobStore.h"
 #include "foundation/SharedPtr.h"
+#include "foundation/Runnable.h"
 
 namespace siit
 {
@@ -18,10 +19,53 @@ namespace siit
             SKIP                            /// Skip missed executions
         };
 
-        class QUARTZ_API ScheduledJob
+        // Job执行任务
+        class JobTask : public Runnable
+        {
+        public:
+            JobTask(Job::Ptr job, const std::string& jobKey)
+                : _job(job)
+                , _jobKey(jobKey)
+            {
+            }
+
+            ~JobTask()
+            {
+            }
+
+            void run() override
+            {
+                if (!_job) {
+                    return;
+                }
+
+                try {
+                    _job->execute();
+                }
+                catch (const Exception& exc)
+                {
+                    throw;
+                }
+                catch (const std::exception& exc)
+                {
+                    throw;
+                }
+                catch (...) {
+                    throw;
+                }
+            }
+
+        private:
+            Job::Ptr _job;
+            std::string _jobKey;
+        };
+
+        class ScheduledJob
         {
         public:
             using Ptr = siit::SharedPtr<ScheduledJob>;
+            ScheduledJob(Job::Ptr job, const std::string& jobKey);
+
             std::string jobKey;
             Job::Ptr job;
             Trigger::Ptr trigger;
@@ -33,9 +77,10 @@ namespace siit
             bool hasNext = false;
             bool paused = false;
             bool cancelled = false;
-
+            JobTask _task;
             // 用于优先队列比较
-            bool operator>(const ScheduledJob& other) const {
+            bool operator>(const ScheduledJob& other) const
+            {
                 return nextFire > other.nextFire;
             }
         };

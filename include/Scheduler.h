@@ -23,6 +23,8 @@ namespace siit
         class QUARTZ_API Scheduler : public Runnable
         {
         public:
+            using Ptr = siit::SharedPtr<Scheduler>;
+
             // 构造函数
             explicit Scheduler(JobStore::Ptr store);
             Scheduler(JobStore::Ptr store, ThreadPool& pool);
@@ -64,9 +66,6 @@ namespace siit
             // Runnable接口
             void run() override;
         private:
-            // 内部数据结构
-            using Ptr = siit::SharedPtr<ScheduledJob>;
-
             struct QueueEntry
             {
                 ScheduledJob::Ptr job;

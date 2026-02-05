@@ -163,13 +163,18 @@
     <ClInclude Include="include\ScheduledJob.h" />
     <ClInclude Include="include\Scheduler.h" />
     <ClInclude Include="include\Trigger.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\CronField.cpp" />
     <ClCompile Include="src\CronTrigger.cpp" />
     <ClCompile Include="src\IntervalTrigger.cpp" />
     <ClCompile Include="src\MemoryJobStore.cpp" />
+    <ClCompile Include="src\ScheduledJob.cpp" />
     <ClCompile Include="src\Scheduler.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="quartz.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

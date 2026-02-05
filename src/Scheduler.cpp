@@ -4,54 +4,13 @@
 #include "foundation/GUIDGenerator.h"
 #include "foundation/Format.h"
 #include "foundation/Nullable.h"
+#include "foundation/RunnableAdapter.h"
 #include <iostream>
 
 namespace siit
 {
     namespace quartz
     {
-        // Job执行任务
-        class JobTask : public Runnable
-        {
-        public:
-            JobTask(Job::Ptr job, const std::string& jobKey)
-                : _job(job)
-                , _jobKey(jobKey)
-            {
-            }
-
-            ~JobTask()
-            {
-                std::cout << "析构" << std::endl;
-            }
-
-            void run() override
-            {
-                if (!_job) {
-                    return;
-                }
-
-                try {
-                    _job->execute();
-                }
-                catch (const Exception& exc)
-                {
-                    throw;
-                }
-                catch (const std::exception& exc)
-                {
-                    throw;
-                }
-                catch (...) {
-                    throw;
-                }
-            }
-
-        private:
-            Job::Ptr _job;
-            std::string _jobKey;
-        };
-
         Scheduler::Scheduler(JobStore::Ptr store)
             : _store(store)
             , _threadPool(ThreadPool::defaultPool())
@@ -117,9 +76,7 @@ namespace siit
             }
 
             // 创建调度任务
-            ScheduledJob::Ptr scheduledJob = new ScheduledJob();
-            scheduledJob->jobKey = key;
-            scheduledJob->job = job;
+            ScheduledJob::Ptr scheduledJob = new ScheduledJob(job, key);
             scheduledJob->trigger = trigger;
             scheduledJob->misfire = misfire;
             scheduledJob->nextFire = nextFire;
@@ -159,28 +116,13 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
 
             auto jobIt = _scheduledJobs.find(key);
-            if (jobIt == _scheduledJobs.end()) {
+            if (jobIt == _scheduledJobs.end())
+            {
                 return false;
             }
 
-            // 标记为已取消
+            // 可能当前正在执行，设置取消标志
             jobIt->second->cancelled = true;
-
-            // 从存储中移除
-            _jobs.erase(key);
-            _scheduledJobs.erase(jobIt);
-
-            // 从队列中移除
-            removeJobFromQueue(key);
-
-            // 从持久化存储中移除
-            if (_store) {
-                try {
-                    _store->removeTrigger(key);
-                }
-                catch (const std::exception& e) {
-                }
-            }
 
             // 通知调度线程
             _condition.signal();
@@ -193,12 +135,14 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
 
             auto jobIt = _scheduledJobs.find(key);
-            if (jobIt == _scheduledJobs.end()) {
+            if (jobIt == _scheduledJobs.end())
+            {
 
                 return false;
             }
 
-            if (jobIt->second->paused) {
+            if (jobIt->second->paused)
+            {
                 return true; // 已经暂停
             }
 
@@ -218,7 +162,8 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
 
             auto jobIt = _scheduledJobs.find(key);
-            if (jobIt == _scheduledJobs.end()) {
+            if (jobIt == _scheduledJobs.end())
+            {
                 return false;
             }
 
@@ -248,7 +193,8 @@ namespace siit
 
         void Scheduler::start()
         {
-            if (_running.exchange(true)) {
+            if (_running.exchange(true))
+            {
                 throw IllegalStateException("Scheduler is already running");
             }
 
@@ -260,7 +206,8 @@ namespace siit
 
         void Scheduler::stop(bool waitForJobsToComplete)
         {
-            if (!_running.exchange(false)) {
+            if (!_running.exchange(false))
+            {
                 return; // 已经停止
             }
 
@@ -270,7 +217,8 @@ namespace siit
             _condition.broadcast();
 
             // 等待调度线程结束
-            if (_schedulerThread.isRunning()) {
+            if (_schedulerThread.isRunning())
+            {
                 _schedulerThread.join();
             }
 
@@ -496,8 +444,7 @@ namespace siit
             // 执行任务
             try
             {
-                JobTask task(job->job, job->jobKey);
-                _threadPool.start(task);
+                _threadPool.start(job->_task);
             }
             catch (const std::exception& e)
             {
@@ -506,15 +453,42 @@ namespace siit
             // 重新调度任务
             if (job->hasNext)
             {
-                FastMutex::ScopedLock lock(_mutex);
-                addJobToQueue(_scheduledJobs[job->jobKey]);
+                if (!job->cancelled)
+                {
+                    FastMutex::ScopedLock lock(_mutex);
+                    addJobToQueue(_scheduledJobs[job->jobKey]);
+                }
+                else
+                {
+                    FastMutex::ScopedLock lock(_mutex);
+
+                    auto jobIt = _scheduledJobs.find(job->jobKey);
+                    if (jobIt == _scheduledJobs.end())
+                    {
+                        return;
+                    }
+
+                    // 从存储中移除
+                    _jobs.erase(job->jobKey);
+                    _scheduledJobs.erase(jobIt);
+
+                    // 从队列中移除
+                    removeJobFromQueue(job->jobKey);
+
+                    // 从持久化存储中移除
+                    if (_store)
+                    {
+                        try {
+                            _store->removeTrigger(job->jobKey);
+                        }
+                        catch (const std::exception& e)
+                        {
+                        }
+                    }
+                }
 
                 // 通知调度线程
                 _condition.signal();
-            }
-            else
-            {
-                std::cout << "has next false" << std::endl;
             }
 
             // 更新存储
@@ -587,12 +561,14 @@ namespace siit
             }
         }
 
-        size_t Scheduler::getJobCount() const {
+        size_t Scheduler::getJobCount() const
+        {
             FastMutex::ScopedLock lock(_mutex);
             return _scheduledJobs.size();
         }
 
-        bool Scheduler::jobExists(const std::string& key) const {
+        bool Scheduler::jobExists(const std::string& key) const
+        {
             FastMutex::ScopedLock lock(_mutex);
             return _scheduledJobs.find(key) != _scheduledJobs.end();
         }
@@ -602,10 +578,8 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
 
             auto it = _scheduledJobs.find(key);
-            if (it == _scheduledJobs.end() ||
-                it->second->paused ||
-                it->second->cancelled ||
-                !it->second->hasNext) {
+            if (it == _scheduledJobs.end() || it->second->paused || it->second->cancelled || !it->second->hasNext)
+            {
                 return DateTime();
             }
 
@@ -619,7 +593,8 @@ namespace siit
             std::vector<std::string> keys;
             keys.reserve(_scheduledJobs.size());
 
-            for (const auto& pair : _scheduledJobs) {
+            for (const auto& pair : _scheduledJobs)
+            {
                 keys.push_back(pair.first);
             }
 
@@ -628,7 +603,8 @@ namespace siit
 
         std::string Scheduler::misfirePolicyToString(MisfirePolicy policy)
         {
-            switch (policy) {
+            switch (policy)
+            {
             case MisfirePolicy::FIRE_NOW: return "FIRE_NOW";
             case MisfirePolicy::CATCH_UP: return "CATCH_UP";
             case MisfirePolicy::SKIP: return "SKIP";

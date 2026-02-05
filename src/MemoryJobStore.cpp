@@ -29,8 +29,10 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
             std::vector<PersistedTrigger> triggers;
 
-            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it) {
-                if (it->second) {
+            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it)
+            {
+                if (it->second)
+                {
                     triggers.push_back(*(it->second));
                 }
             }
@@ -43,8 +45,10 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
             std::vector<PersistedTrigger::Ptr> triggers;
 
-            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it) {
-                if (it->second) {
+            for (auto it = _triggerPtrsMap.begin(); it != _triggerPtrsMap.end(); ++it)
+            {
+                if (it->second)
+                {
                     triggers.push_back(it->second);
                 }
             }
@@ -52,16 +56,13 @@ namespace siit
             return triggers;
         }
 
-        void MemoryJobStore::updateFireTimes(const std::string& jobKey,
-            const DateTime& last,
-            const DateTime& next,
-            bool hasLast,
-            bool hasNext)
+        void MemoryJobStore::updateFireTimes(const std::string& jobKey, const DateTime& last, const DateTime& next, bool hasLast, bool hasNext)
         {
             FastMutex::ScopedLock lock(_mutex);
 
             auto it = _triggerPtrsMap.find(jobKey);
-            if (it != _triggerPtrsMap.end() && it->second) {
+            if (it != _triggerPtrsMap.end() && it->second)
+            {
                 it->second->lastFireTime = last;
                 it->second->nextFireTime = next;
                 it->second->hasLast = hasLast;
@@ -80,7 +81,8 @@ namespace siit
             FastMutex::ScopedLock lock(_mutex);
 
             auto it = _triggerPtrsMap.find(jobKey);
-            if (it != _triggerPtrsMap.end()) {
+            if (it != _triggerPtrsMap.end())
+            {
                 return it->second;
             }
 
