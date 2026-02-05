@@ -70,7 +70,7 @@ namespace siit
             DateTime now;
             DateTime nextFire = trigger->nextFireTime(now);
 
-            if (Nullable<DateTime>(nextFire).isNull())
+            if (nextFire == DateTime(1, 1, 1))
             {
                 throw InvalidArgumentException("Trigger returned null next fire time");
             }
@@ -312,7 +312,8 @@ namespace siit
                 }
 
                 // 阶段3：执行任务
-                try {
+                try
+                {
                     handleMisfire(nextJob, now);
                 }
                 catch (...) {
@@ -360,7 +361,7 @@ namespace siit
 
                     // 计算下一次触发
                     DateTime nextFire = job->trigger->nextFireTime(now);
-                    if (!Nullable<DateTime>(nextFire).isNull())
+                    if (nextFire != DateTime(1, 1, 1))
                     {
                         job->nextFire = nextFire;
 
@@ -435,18 +436,22 @@ namespace siit
             job->lastFire = scheduledTime;
             job->hasLast = true;
 
-            // 计算下一次触发
-            DateTime now;
-            DateTime nextFire = job->trigger->nextFireTime(now);
-            job->nextFire = nextFire;
-            job->hasNext = !Nullable<DateTime>(nextFire).isNull();
-
             // 执行任务
             try
             {
+                // 更新执行次数
+                Trigger::Ptr trigger = job->trigger;
+                trigger->increaseFireCount();
+
+                // 计算下一次触发
+                DateTime now;
+                DateTime nextFire = job->trigger->nextFireTime(now);
+                job->nextFire = nextFire;
+                job->hasNext = nextFire != DateTime(1, 1, 1);
+
                 _threadPool.start(job->_task);
             }
-            catch (const std::exception& e)
+            catch (const siit::Exception& e)
             {
             }
 

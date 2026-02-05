@@ -16,10 +16,13 @@ namespace siit
             validateQuartzDomDow();
         }
 
-        std::string CronTrigger::type() const { return "cron"; }
-        std::string CronTrigger::expr() const { return _expr; }
+        void CronTrigger::increaseFireCount()
+        {
 
-        void CronTrigger::parse(const std::string& expr) {
+        }
+
+        void CronTrigger::parse(const std::string& expr)
+        {
             _expr = expr;
             std::stringstream ss(expr);
             std::vector<std::string> fields;
@@ -41,27 +44,34 @@ namespace siit
             else _year.parse("*", FieldType::YEAR);
         }
 
-        void CronTrigger::validateQuartzDomDow() const {
+        void CronTrigger::validateQuartzDomDow() const
+        {
             bool domNo = _day.isNoSpec();
             bool dowNo = _week.isNoSpec();
-            if (domNo == dowNo) {
-                throw std::invalid_argument(
-                    "Quartz requires one of day-of-month or day-of-week to be '?'"
-                );
+            if (domNo == dowNo)
+            {
+                throw std::invalid_argument("Quartz requires one of day-of-month or day-of-week to be '?'");
             }
         }
 
-        int CronTrigger::quartzDOW(const DateTime& t) const {
+        int CronTrigger::quartzDOW(const DateTime& t) const
+        {
             int w = t.dayOfWeek(); // 0=SUN..6=SAT
             return (w == 0) ? 1 : (w + 1);
         }
 
-        bool CronTrigger::dayMatchQuartz(const DateTime& t) const {
-            if (_day.isNoSpec()) return matchDOW(t);
+        bool CronTrigger::dayMatchQuartz(const DateTime& t) const
+        {
+            if (_day.isNoSpec())
+            {
+                return matchDOW(t);
+            }
+
             return matchDOM(t);
         }
 
-        bool CronTrigger::matchDOM(const DateTime& t) const {
+        bool CronTrigger::matchDOM(const DateTime& t) const
+        {
             int y = t.year(), m = t.month(), d = t.day();
             int last = DateTime::daysOfMonth(y, m);
 
@@ -72,16 +82,19 @@ namespace siit
             return _day.match(d);
         }
 
-        bool CronTrigger::matchDOW(const DateTime& t) const {
+        bool CronTrigger::matchDOW(const DateTime& t) const
+        {
             int y = t.year(), m = t.month(), d = t.day();
             int dow = quartzDOW(t);
 
             if (_week.dowLast()) return d == lastDowInMonth(y, m, _week.dowLastVal());
             if (_week.dowNth()) return d == nthDowInMonth(y, m, _week.dowNthVal(), _week.dowNthIndex());
+            
             return _week.match(dow);
         }
 
-        DateTime CronTrigger::nextFireTime(const DateTime& after) {
+        DateTime CronTrigger::nextFireTime(const DateTime& after)
+        {
             DateTime t = after + Timespan::SECONDS;
 
             for (int guard = 0; guard < 200000; ++guard) {
@@ -112,11 +125,13 @@ namespace siit
             return t;
         }
 
-        DateTime CronTrigger::nextValidDayInMonthOrNext(const DateTime& t) const {
+        DateTime CronTrigger::nextValidDayInMonthOrNext(const DateTime& t) const
+        {
             int y = t.year(), m = t.month();
             int last = DateTime::daysOfMonth(y, m);
 
-            for (int d = t.day(); d <= last; ++d) {
+            for (int d = t.day(); d <= last; ++d)
+            {
                 DateTime cand(y, m, d, 0, 0, 0);
                 if (dayMatchQuartz(cand)) return cand;
             }
@@ -124,10 +139,12 @@ namespace siit
             DateTime nm(y, m, 1, 0, 0, 0);
             nm += Timespan(31, 0, 0, 0, 0);
             nm = DateTime(nm.year(), nm.month(), 1, 0, 0, 0);
+            
             return nm;
         }
 
-        int CronTrigger::lastWeekdayOfMonth(int y, int m) {
+        int CronTrigger::lastWeekdayOfMonth(int y, int m)
+        {
             int last = DateTime::daysOfMonth(y, m);
             for (int d = last; d >= last - 6; --d) {
                 DateTime t(y, m, d, 0, 0, 0);
@@ -137,7 +154,8 @@ namespace siit
             return last;
         }
 
-        int CronTrigger::nearestWeekday(int y, int m, int day) {
+        int CronTrigger::nearestWeekday(int y, int m, int day)
+        {
             int last = DateTime::daysOfMonth(y, m);
             if (day < 1) day = 1;
             if (day > last) day = last;
@@ -150,7 +168,8 @@ namespace siit
             return (day - 1 >= 1) ? day - 1 : day + 1;
         }
 
-        int CronTrigger::lastDowInMonth(int y, int m, int dowQuartz) {
+        int CronTrigger::lastDowInMonth(int y, int m, int dowQuartz)
+        {
             int last = DateTime::daysOfMonth(y, m);
             for (int d = last; d >= 1; --d) {
                 DateTime t(y, m, d, 0, 0, 0);
@@ -160,7 +179,8 @@ namespace siit
             return -1;
         }
 
-        int CronTrigger::nthDowInMonth(int y, int m, int dowQuartz, int nth) {
+        int CronTrigger::nthDowInMonth(int y, int m, int dowQuartz, int nth)
+        {
             int count = 0;
             int last = DateTime::daysOfMonth(y, m);
             for (int d = 1; d <= last; ++d) {

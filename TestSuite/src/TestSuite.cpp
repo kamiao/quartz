@@ -39,7 +39,7 @@ int main() {
     siit::quartz::CronTrigger::Ptr cron = new siit::quartz::CronTrigger("*/10 * * ? * *");
 
     // Trigger：每 3 秒一次
-    siit::quartz::IntervalTrigger::Ptr interval = new siit::quartz::IntervalTrigger(siit::Timespan(0, 0, 0, 3, 0));
+    siit::quartz::IntervalTrigger::Ptr interval = new siit::quartz::IntervalTrigger(siit::Timespan(0, 0, 0, 3, 0), 1);
 
     // 调度
     siit::SharedPtr<PrintJob> job1 = new PrintJob("1");

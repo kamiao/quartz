@@ -22,7 +22,7 @@ namespace siit
             DateTime nextFireTime(const DateTime& after) override;
             std::string type() const override;
             std::string expr() const override;
-
+            void increaseFireCount() override;
         private:
             CronField _sec, _min, _hour, _day, _month, _week, _year;
             std::string _expr;
@@ -42,6 +42,17 @@ namespace siit
             static int lastDowInMonth(int y, int m, int dowQuartz);
             static int nthDowInMonth(int y, int m, int dowQuartz, int nth);
         };
+
+        // inline
+        inline std::string CronTrigger::CronTrigger::type() const
+        {
+            return "cron";
+        }
+
+        inline std::string CronTrigger::CronTrigger::expr() const
+        {
+            return _expr;
+        }
     }
 }
 #endif //_SIIT_QUARTZ_CRON_TRIGGER_H_
