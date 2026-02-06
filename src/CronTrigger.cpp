@@ -1,6 +1,8 @@
 #include "include/CronTrigger.h"
 #include "include/CronField.h"
 #include "foundation/Timespan.h"
+#include "foundation/LocalDateTime.h"
+#include "foundation/Timezone.h"
 #include <stdexcept>
 #include <sstream>
 
@@ -40,8 +42,14 @@ namespace siit
             _month.parse(fields[4], FieldType::MONTH);
             _week.parse(fields[5], FieldType::DAY_OF_WEEK);
 
-            if (fields.size() == 7) _year.parse(fields[6], FieldType::YEAR);
-            else _year.parse("*", FieldType::YEAR);
+            if (fields.size() == 7)
+            {
+                _year.parse(fields[6], FieldType::YEAR);
+            }
+            else
+            {
+                _year.parse("*", FieldType::YEAR);
+            }
         }
 
         void CronTrigger::validateQuartzDomDow() const
@@ -95,34 +103,98 @@ namespace siit
 
         DateTime CronTrigger::nextFireTime(const DateTime& after)
         {
-            DateTime t = after + Timespan::SECONDS;
+            // 确保输入是 UTC 时间
+            DateTime t = after;
+            t.makeLocal(Timezone::tzd());
+            // 从 after 的下一秒开始检查
+            t += Timespan(0, 0, 0, 1, 0); // 加 1 秒
 
-            for (int guard = 0; guard < 200000; ++guard) {
+            constexpr int MAX_ITERATIONS = 200000; // 防止无限循环
+
+            for (int guard = 0; guard < MAX_ITERATIONS; ++guard)
+            {
+                // 1. 检查年份
                 int ny = _year.nextGE(t.year());
-                if (ny < 0) return t;
-                if (ny != t.year()) { t = DateTime(ny, 1, 1, 0, 0, 0); continue; }
+                if (ny < 0) {
+                    // 没有符合条件的年份，返回当前时间（通常表示没有下一次）
+                    return t;
+                }
+                if (ny != t.year()) {
+                    // 年份不匹配，跳到下一年的 1月1日 00:00:00
+                    t = DateTime(ny, 1, 1, 0, 0, 0, 0, 0);
+                    continue;
+                }
 
+                // 2. 检查月份
                 int nm = _month.nextGE(t.month());
-                if (nm < 0) { t = DateTime(t.year() + 1, 1, 1, 0, 0, 0); continue; }
-                if (nm != t.month()) { t = DateTime(t.year(), nm, 1, 0, 0, 0); continue; }
+                if (nm < 0) {
+                    // 当前年份没有符合条件的月份，跳到下一年的 1月1日
+                    t = DateTime(t.year() + 1, 1, 1, 0, 0, 0, 0, 0);
+                    continue;
+                }
+                if (nm != t.month()) {
+                    // 月份不匹配，跳到该年目标月份的第1天
+                    t = DateTime(t.year(), nm, 1, 0, 0, 0, 0, 0);
+                    continue;
+                }
 
-                if (!dayMatchQuartz(t)) { t = nextValidDayInMonthOrNext(t); continue; }
+                // 3. 检查日期（日和周几）
+                if (!dayMatchQuartz(t)) {
+                    t = nextValidDayInMonthOrNext(t);
+                    continue;
+                }
 
+                // 4. 检查小时
                 int nh = _hour.nextGE(t.hour());
-                if (nh < 0) { t = DateTime(t.year(), t.month(), t.day(), 0, 0, 0); t += Timespan(1, 0, 0, 0, 0); continue; }
-                if (nh != t.hour()) { t = DateTime(t.year(), t.month(), t.day(), nh, _min.first(), _sec.first()); continue; }
+                if (nh < 0) {
+                    // 当天没有合适的小时，跳到下一天的 00:00:00
+                    t = DateTime(t.year(), t.month(), t.day(), 0, 0, 0, 0, 0);
+                    t += Timespan(1, 0, 0, 0, 0); // 加 1 天
+                    continue;
+                }
+                if (nh != t.hour()) {
+                    // 小时不匹配，跳到该小时的第一分钟第一秒
+                    t = DateTime(t.year(), t.month(), t.day(),
+                        nh, _min.first(), _sec.first(), 0, 0);
+                    continue;
+                }
 
+                // 5. 检查分钟
                 int nmin = _min.nextGE(t.minute());
-                if (nmin < 0) { t = DateTime(t.year(), t.month(), t.day(), t.hour(), 0, 0); t += Timespan(0, 1, 0, 0, 0); continue; }
-                if (nmin != t.minute()) { t = DateTime(t.year(), t.month(), t.day(), t.hour(), nmin, _sec.first()); continue; }
+                if (nmin < 0) {
+                    // 当前小时没有合适的分钟，跳到下一小时的 00:00
+                    t = DateTime(t.year(), t.month(), t.day(), t.hour(), 0, 0, 0, 0);
+                    t += Timespan(0, 1, 0, 0, 0); // 加 1 小时
+                    continue;
+                }
+                if (nmin != t.minute()) {
+                    // 分钟不匹配，跳到该分钟的第一秒
+                    t = DateTime(t.year(), t.month(), t.day(), t.hour(), nmin, _sec.first(), 0, 0);
+                    continue;
+                }
 
+                // 6. 检查秒
                 int ns = _sec.nextGE(t.second());
-                if (ns < 0) { t = DateTime(t.year(), t.month(), t.day(), t.hour(), t.minute(), 0); t += Timespan(0, 0, 1, 0, 0); continue; }
-                if (ns != t.second()) { t = DateTime(t.year(), t.month(), t.day(), t.hour(), t.minute(), ns); continue; }
+                if (ns < 0) {
+                    // 当前分钟没有合适的秒，跳到下一分钟的 00
+                    t = DateTime(t.year(), t.month(), t.day(), t.hour(), t.minute(), 0, 0, 0);
+                    t += Timespan(0, 0, 1, 0, 0); // 加 1 分钟
+                    continue;
+                }
+                if (ns != t.second()) {
+                    // 秒不匹配，跳到目标秒
+                    t = DateTime(t.year(), t.month(), t.day(), t.hour(), t.minute(), ns, 0, 0);
+                    continue;
+                }
+
+                // 所有字段都匹配，找到下一个触发时间
+                t.makeUTC(Timezone::tzd());
 
                 return t;
             }
-            return t;
+
+            // 超过最大迭代次数，返回当前时间
+            throw std::runtime_error("CronTrigger: Exceeded maximum iterations");
         }
 
         DateTime CronTrigger::nextValidDayInMonthOrNext(const DateTime& t) const

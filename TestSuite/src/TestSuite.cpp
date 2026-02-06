@@ -35,8 +35,11 @@ int main() {
     // Scheduler
     siit::quartz::Scheduler sched(store);
 
-    // Trigger：每 5 秒一次
-    siit::quartz::CronTrigger::Ptr cron = new siit::quartz::CronTrigger("*/10 * * ? * *");
+    // Trigger：每 10 秒一次
+    siit::quartz::CronTrigger::Ptr cron1 = new siit::quartz::CronTrigger("*/10 * * ? * *");
+
+    // 每天11点50
+    siit::quartz::CronTrigger::Ptr cron2 = new siit::quartz::CronTrigger("0 51 15 * * ? *");
 
     // Trigger：每 3 秒一次
     siit::quartz::IntervalTrigger::Ptr interval = new siit::quartz::IntervalTrigger(siit::Timespan(0, 0, 0, 3, 0), 1);
@@ -44,8 +47,8 @@ int main() {
     // 调度
     siit::SharedPtr<PrintJob> job1 = new PrintJob("1");
     siit::SharedPtr<PrintJob> job2 = new PrintJob("2");
-    sched.schedule(job1, cron, siit::quartz::MisfirePolicy::CATCH_UP);
-   std::string id = sched.schedule(job2, cron, siit::quartz::MisfirePolicy::CATCH_UP);
+    //sched.schedule(job1, cron1, siit::quartz::MisfirePolicy::CATCH_UP);
+    sched.schedule(job2, cron2, siit::quartz::MisfirePolicy::CATCH_UP);
 
     // 启动
     std::cout << "Scheduler started. Press Enter to quit..." << std::endl;
@@ -53,7 +56,7 @@ int main() {
 
     siit::Thread::sleep(30 * 1000);
     siit::SharedPtr<CrashJob> job3 = new CrashJob();
-    sched.schedule(job3, interval, siit::quartz::MisfirePolicy::FIRE_NOW);
+    //sched.schedule(job3, interval, siit::quartz::MisfirePolicy::FIRE_NOW);
 
     siit::Thread::sleep(30 *1000);
     //sched.cancel(id);
