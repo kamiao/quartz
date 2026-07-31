@@ -1,7 +1,7 @@
 #! /bin/sh
 cpp_workspace=$CPP_WORKSPACE
 siitframe_path=$SIITFRAME_PATH/crossplatform-1.1
-library_version=1.0.1
+library_version=1.0.2
 
 echo $CPP_WORKSPACE
 echo ${cpp_workspace}
